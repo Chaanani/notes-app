@@ -2,8 +2,8 @@ FROM node:20-alpine AS build
 WORKDIR /app
 # Copy package files
 COPY package*.json ./
-# Install dependencies with clean slate
-RUN npm ci
+# Install dependencies
+RUN npm install
 # Copy source code
 COPY . .
 # Set NODE_ENV to production for optimized build
