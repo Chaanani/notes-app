@@ -1,0 +1,77 @@
+name: 🚀 CI-CD Pipeline (Docker + Kubernetes + ArgoCD)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-push-update:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_BACKEND: ${{ secrets.DOCKERHUB_USERNAME }}/notes-backend
+      IMAGE_FRONTEND: ${{ secrets.DOCKERHUB_USERNAME }}/notes-frontend
+      BRANCH: main   
+
+    steps:
+      - name: 📥 Checkout du code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ====== BACKEND ======
+      - name: 🐍 Build & Push Backend
+        id: backend_build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BACKEND }}:latest
+            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+
+      # ====== FRONTEND ======
+      - name: 🌐 Build & Push Frontend
+        id: frontend_build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+
+      # ====== UPDATE K8S FILES ======
+      - name: 📝 Mise à jour des images dans les YAML K8s
+        run: |
+          echo "🔄 Mise à jour des images Docker dans les fichiers YAML..."
+          sed -i "s#${{ env.IMAGE_BACKEND }}:.*#${{ env.IMAGE_BACKEND }}:${{ github.sha }}#g" k8s/deployment-backend.yaml
+          sed -i "s#${{ env.IMAGE_FRONTEND }}:.*#${{ env.IMAGE_FRONTEND }}:${{ github.sha }}#g" k8s/deployment-frontend.yaml
+
+      # ====== COMMIT YAML CHANGES ======
+      - name: 💾 Commit & Push modifications YAML
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
+          git add k8s/deployment-backend.yaml k8s/deployment-frontend.yaml
+          git commit -m "🔄 Update Docker images to ${{ github.sha }}" || echo "No changes to commit"
+          git push origin ${{ env.BRANCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ====== LOGS ======
+      - name: ✅ Fin du pipeline
+        run: |
+          echo "-----------------------------------"
+          echo "✅ Pipeline terminé avec succès !"
+          echo "Les images suivantes ont été déployées :"
+          echo " - Backend : ${{ env.IMAGE_BACKEND }}:${{ github.sha }}"
+          echo " - Frontend: ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}"
+          echo "-----------------------------------"
