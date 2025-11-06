@@ -8,6 +8,7 @@ on:
 jobs:
   build-push-update:
     runs-on: ubuntu-latest
+    
     env:
       IMAGE_BACKEND: ${{ secrets.DOCKERHUB_USERNAME }}/notes-backend
       IMAGE_FRONTEND: ${{ secrets.DOCKERHUB_USERNAME }}/notes-frontend
