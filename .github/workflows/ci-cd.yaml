@@ -38,6 +38,7 @@ jobs:
             ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
 
       # ====== FRONTEND ======
+      
       - name: 🌐 Build & Push Frontend
         id: frontend_build
         uses: docker/build-push-action@v5
