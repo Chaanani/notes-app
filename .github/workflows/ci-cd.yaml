@@ -25,7 +25,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: ${{secrets.DOCKERHUB_USERNAME}}
-          password: ${{secrets.DOCKER_HUB_USERNAM}}
+          password: ${{secrets.DOCKER_HUB_USERNAME}}
 
       # ====== BACKEND ======
       - name: 🐍 Build & Push Backend
