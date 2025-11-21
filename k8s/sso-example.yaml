@@ -1,0 +1,209 @@
+# 🔐 Exemple complet de configuration SSO avec Keycloak
+# Ce fichier montre comment configurer l'authentification SSO
+
+---
+# ConfigMap pour la configuration SSO (partie publique)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sso-config
+  namespace: notes-app
+data:
+  # 🌐 URLs publiques Keycloak
+  SSO_PROVIDER: "keycloak"
+  SSO_REALM: "notes-realm"
+  SSO_URL: "https://keycloak.example.com"
+  SSO_AUTH_URL: "https://keycloak.example.com/realms/notes-realm/protocol/openid-connect/auth"
+  SSO_TOKEN_URL: "https://keycloak.example.com/realms/notes-realm/protocol/openid-connect/token"
+  SSO_USERINFO_URL: "https://keycloak.example.com/realms/notes-realm/protocol/openid-connect/userinfo"
+  
+  # 🔗 OAuth Configuration
+  OAUTH_SCOPES: "openid profile email"
+  OAUTH_RESPONSE_TYPE: "code"
+  OAUTH_GRANT_TYPE: "authorization_code"
+  
+  # 🔙 Redirect URLs
+  OAUTH_REDIRECT_URI: "https://notes-app.example.com/callback"
+  OAUTH_LOGOUT_REDIRECT: "https://notes-app.example.com"
+
+---
+# Secret pour les credentials SSO (partie sensible)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sso-secrets
+  namespace: notes-app
+type: Opaque
+data:
+  # 🔒 Keycloak Client Credentials
+  # Client ID: notes-app-client
+  KEYCLOAK_CLIENT_ID: bm90ZXMtYXBwLWNsaWVudA==
+  
+  # Client Secret: abc123def456ghi789jkl
+  KEYCLOAK_CLIENT_SECRET: YWJjMTIzZGVmNDU2Z2hpNzg5amts
+  
+  # 🔐 Google OAuth (si vous utilisez Google SSO)
+  # GOOGLE_CLIENT_ID: MTIzNDU2Nzg5MC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbQ==
+  # GOOGLE_CLIENT_SECRET: R09DU1BYLWFiY2RlZmdoaWprbG1ub3A=
+  
+  # 🔐 Microsoft Azure AD (si vous utilisez Azure SSO)
+  # AZURE_CLIENT_ID: YXp1cmUtY2xpZW50LWlkLTEyMzQ1Ng==
+  # AZURE_CLIENT_SECRET: YXp1cmUtY2xpZW50LXNlY3JldC1hYmNkZWY=
+  # AZURE_TENANT_ID: dGVuYW50LWlkLWFiY2RlZi0xMjM0NTY=
+
+---
+# Deployment avec SSO configuré
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-with-sso
+  namespace: notes-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-sso
+  template:
+    metadata:
+      labels:
+        app: backend-sso
+    spec:
+      containers:
+        - name: backend
+          image: ton-dockerhub-username/notes-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            # Variables depuis ConfigMap (publiques)
+            - name: SSO_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: sso-config
+                  key: SSO_PROVIDER
+            - name: SSO_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: sso-config
+                  key: SSO_REALM
+            - name: SSO_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: sso-config
+                  key: SSO_URL
+            - name: OAUTH_SCOPES
+              valueFrom:
+                configMapKeyRef:
+                  name: sso-config
+                  key: OAUTH_SCOPES
+            
+            # Variables depuis Secret (sensibles)
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sso-secrets
+                  key: KEYCLOAK_CLIENT_ID
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: sso-secrets
+                  key: KEYCLOAK_CLIENT_SECRET
+
+---
+# 📝 EXPLICATION DES CONCEPTS SSO
+
+# 1️⃣ QU'EST-CE QU'UN REALM ?
+# Un Realm est comme un "royaume" ou "domaine" de sécurité.
+# Dans Keycloak, c'est un espace isolé qui contient :
+#   - Utilisateurs (alice@example.com, bob@example.com)
+#   - Applications/Clients (notes-app, dashboard-app)
+#   - Rôles (admin, user, viewer)
+#   - Groupes (developers, managers)
+
+# Exemple de structure :
+# Realm: "notes-realm"
+#   ├── Users
+#   │   ├── alice@example.com (role: admin)
+#   │   ├── bob@example.com (role: user)
+#   │   └── charlie@example.com (role: viewer)
+#   ├── Clients
+#   │   ├── notes-app (votre application)
+#   │   ├── admin-dashboard
+#   │   └── mobile-app
+#   └── Roles
+#       ├── admin (full access)
+#       ├── user (read/write notes)
+#       └── viewer (read only)
+
+# 2️⃣ COMMENT FONCTIONNE SSO ?
+
+# Flux d'authentification OAuth2/OIDC :
+# 
+# Utilisateur                Frontend              Backend              Keycloak
+#    |                          |                      |                     |
+#    |--1. Clique "Login"------>|                      |                     |
+#    |                          |---2. Redirect------->|                     |
+#    |                          |                      |                     |
+#    |<-----------3. Redirect vers page de login Keycloak------------------|
+#    |                          |                      |                     |
+#    |----4. Entre credentials (email/password)----------------------->|
+#    |                          |                      |                     |
+#    |<-----------5. Redirect avec code d'autorisation------------------|
+#    |                          |                      |                     |
+#    |--6. Envoie code--------->|                      |                     |
+#    |                          |--7. Code + Client Secret-------->|         |
+#    |                          |                      |                     |
+#    |                          |<-8. Access Token + Refresh Token-----------|
+#    |                          |                      |                     |
+#    |<-9. Session créée--------|                      |                     |
+#    |                          |                      |                     |
+#    |--10. API request-------->|--11. Token----------->|                    |
+#    |                          |                      |--12. Valide token-->|
+#    |                          |                      |<-13. User info------|
+#    |<-14. Response------------|<-15. Data------------|                     |
+
+# 3️⃣ POURQUOI SÉPARER CLIENT_ID (public) et CLIENT_SECRET (secret) ?
+
+# CLIENT_ID (Public - dans ConfigMap)
+#   - Identifie votre application
+#   - Visible dans l'URL du navigateur
+#   - Peut être public
+#   - Exemple: "notes-app-client"
+
+# CLIENT_SECRET (Sensible - dans Secret)
+#   - Prouve que vous êtes vraiment l'application
+#   - NE DOIT JAMAIS être exposé au frontend
+#   - Comme un mot de passe pour votre app
+#   - Utilisé uniquement côté backend
+#   - Exemple: "abc123def456ghi789jkl"
+
+# 4️⃣ EXEMPLE CONCRET
+
+# Imaginez :
+# - Vous créez une app "Notes App"
+# - Vous voulez que les employés de votre entreprise se connectent
+# - Vous utilisez Keycloak comme serveur SSO
+
+# Configuration dans Keycloak :
+# 1. Créer un Realm : "mon-entreprise"
+# 2. Créer un Client : "notes-app"
+# 3. Keycloak génère un CLIENT_SECRET : "secret-abc-123"
+# 4. Configurer les URLs de redirect : "https://notes.com/callback"
+
+# Dans votre app Kubernetes :
+# ConfigMap → CLIENT_ID (public)
+# Secret → CLIENT_SECRET (sensible)
+
+# Quand un utilisateur se connecte :
+# 1. Il voit la page Keycloak
+# 2. Entre son email/password
+# 3. Keycloak valide
+# 4. Retourne un token à votre app
+# 5. Votre app utilise ce token pour savoir qui est l'utilisateur
+
+# 5️⃣ AVANTAGES DU SSO
+
+# ✅ Un seul login pour toutes les apps
+# ✅ Gestion centralisée des utilisateurs
+# ✅ Sécurité renforcée (2FA, politiques de mot de passe)
+# ✅ Audit centralisé (qui s'est connecté quand)
+# ✅ Révocation facile (bloquer un utilisateur partout)

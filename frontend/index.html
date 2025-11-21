@@ -1,12 +1,230 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        .notes-list {
+            margin-top: 40px;
+        }
+        
+        .note {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .note h3 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .note p {
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .note small {
+            color: #999;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Notes App Simple</h1>
+        
+        <div id="message"></div>
+        
+        <form id="noteForm">
+            <div class="form-group">
+                <label for="title">Titre</label>
+                <input type="text" id="title" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="content">Contenu</label>
+                <textarea id="content"></textarea>
+            </div>
+            
+            <button type="submit">➕ Ajouter Note</button>
+        </form>
+        
+        <div class="notes-list">
+            <h2>Mes Notes</h2>
+            <div id="notesList"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8000';
+        const API_TOKEN = 'mon-super-token-secret-123';
+        
+        // Afficher un message
+        function showMessage(text, type = 'success') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.textContent = text;
+            setTimeout(() => {
+                messageDiv.textContent = '';
+                messageDiv.className = '';
+            }, 3000);
+        }
+        
+        // Charger les notes
+        async function loadNotes() {
+            try {
+                const response = await fetch(`${API_URL}/notes`, {
+                    headers: {
+                        'X-API-Token': API_TOKEN
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Erreur de chargement');
+                }
+                
+                const notes = await response.json();
+                displayNotes(notes);
+            } catch (error) {
+                showMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        // Afficher les notes
+        function displayNotes(notes) {
+            const notesList = document.getElementById('notesList');
+            
+            if (notes.length === 0) {
+                notesList.innerHTML = '<p style="color: #999; text-align: center;">Aucune note pour le moment</p>';
+                return;
+            }
+            
+            notesList.innerHTML = notes.map(note => `
+                <div class="note">
+                    <h3>${note.title}</h3>
+                    <p>${note.content || '<em>Pas de contenu</em>'}</p>
+                    <small>Créée le: ${new Date(note.created_at).toLocaleString('fr-FR')}</small>
+                </div>
+            `).join('');
+        }
+        
+        // Ajouter une note
+        document.getElementById('noteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/notes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Token': API_TOKEN
+                    },
+                    body: JSON.stringify({ title, content })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Erreur de création');
+                }
+                
+                showMessage('✅ Note créée avec succès!');
+                document.getElementById('noteForm').reset();
+                loadNotes();
+            } catch (error) {
+                showMessage('Erreur: ' + error.message, 'error');
+            }
+        });
+        
+        // Charger les notes au démarrage
+        loadNotes();
+    </script>
+</body>
 </html>

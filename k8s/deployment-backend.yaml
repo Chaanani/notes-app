@@ -15,23 +15,18 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ton-dockerhub-username/notes-backend:latest
+          image: YOUR_DOCKERHUB_USERNAME/notes-backend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           env:
-            - name: PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: PORT
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: backend-secret
                   key: DATABASE_URL
-          readinessProbe:
-            httpGet:
-              path: /api/health
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: API_TOKEN

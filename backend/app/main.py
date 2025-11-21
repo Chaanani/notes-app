@@ -1,23 +1,19 @@
-import logging
-from fastapi import FastAPI, Depends, Request
-from sqlalchemy.orm import Session
-from . import models, database
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import List
+from .database import engine, Base, get_db
+from .models import Note
+from .config import settings
 
-# 🧩 Configuration des logs
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
-)
-logger = logging.getLogger("notes-backend")
+# Créer les tables
+Base.metadata.create_all(bind=engine)
 
-# 🧱 DB init
-models.Base.metadata.create_all(bind=database.engine)
+# Application FastAPI
+app = FastAPI(title="Notes API Simple")
 
-app = FastAPI(title="Notes API - FastAPI")
-
-# 🌍 CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,50 +22,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔌 DB Dependency
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
-# 🧠 Middleware pour tracer chaque requête
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = datetime.now()
-    logger.info(f"➡️ Requête {request.method} {request.url}")
-    response = await call_next(request)
-    process_time = (datetime.now() - start_time).total_seconds()
-    logger.info(f"⬅️ Réponse {response.status_code} ({process_time:.2f}s)")
-    return response
+# Schémas Pydantic
+class NoteCreate(BaseModel):
+    title: str
+    content: str = ""
 
-@app.get("/api/health")
-def health_check():
-    logger.info("✅ Vérification de santé OK")
-    return {"status": "ok"}
 
-@app.get("/api/notes")
-def get_notes(db: Session = Depends(get_db)):
-    logger.info("📥 Lecture des notes depuis la base")
-    try:
-        notes = db.query(models.Note).all()
-        logger.info(f"✅ {len(notes)} notes trouvées")
-        return notes
-    except Exception as e:
-        logger.exception("❌ Erreur lors de la récupération des notes")
-        return {"error": str(e)}
+class NoteResponse(BaseModel):
+    id: int
+    title: str
+    content: str
 
-@app.post("/api/notes")
-def create_note(note: dict, db: Session = Depends(get_db)):
-    logger.info(f"📝 Création d'une note : {note}")
-    try:
-        new_note = models.Note(title=note["title"], content=note["content"])
-        db.add(new_note)
-        db.commit()
-        db.refresh(new_note)
-        logger.info(f"✅ Note créée avec ID {new_note.id}")
-        return new_note
-    except Exception as e:
-        logger.exception("❌ Erreur lors de la création d'une note")
-        return {"error": str(e)}
+    class Config:
+        from_attributes = True
+
+
+# Vérification du token
+def verify_token(x_api_token: str = Header(None)):
+    """Vérifie que le token API est correct"""
+    if x_api_token != settings.API_TOKEN:
+        raise HTTPException(status_code=401, detail=f"Token invalide. Reçu: {x_api_token}, Attendu: {settings.API_TOKEN}")
+    return x_api_token
+
+
+# Routes
+@app.get("/")
+def root():
+    """Route de base"""
+    return {"message": "Notes API Simple - Utilisez /notes avec le header X-API-Token"}
+
+
+@app.get("/notes", response_model=List[NoteResponse])
+def get_notes(
+    db: Session = Depends(get_db),
+    token: str = Depends(verify_token)
+):
+    """Récupérer toutes les notes (nécessite token)"""
+    notes = db.query(Note).all()
+    return notes
+
+
+@app.post("/notes", response_model=NoteResponse)
+def create_note(
+    note: NoteCreate,
+    db: Session = Depends(get_db),
+    token: str = Depends(verify_token)
+):
+    """Créer une nouvelle note (nécessite token)"""
+    db_note = Note(title=note.title, content=note.content)
+    db.add(db_note)
+    db.commit()
+    db.refresh(db_note)
+    return db_note

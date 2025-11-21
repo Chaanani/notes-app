@@ -3,17 +3,25 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 .env
-
+*.env
+SECURITY_GUIDE.md
+SSO_SECRETS_EXPLAINED.md
 # FastAPI / backend
 backend/.venv/
 backend/__pycache__/
 backend/*.log
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/.env.staging
 
 # Node / React / Vite
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/.env
+frontend/.env.local
+frontend/.env.production
 frontend/.DS_Store
 
 
@@ -31,3 +39,14 @@ Thumbs.db
 *.tmp
 .env.local
 .env.*
+
+# Kubernetes secrets (si générés localement)
+k8s/secret-*.yaml
+!k8s/secret-postgres.yaml
+!k8s/secret.yaml
+
+# Fichiers sensibles
+*.pem
+*.key
+*.cert
+secrets/

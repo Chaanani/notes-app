@@ -4,4 +4,22 @@ metadata:
   name: backend-config
   namespace: notes-app
 data:
+  # 🌐 Configuration du serveur (NON sensible)
   PORT: "8000"
+  HOST: "0.0.0.0"
+  
+  # 📊 Logs et monitoring
+  LOG_LEVEL: "info"
+  
+  # 🌍 Environnement
+  ENVIRONMENT: "production"
+  APP_NAME: "Notes App"
+  APP_VERSION: "1.0.0"
+  
+  # ⚙️ Paramètres de l'application
+  MAX_NOTES_PER_USER: "1000"
+  PAGINATION_SIZE: "20"
+  
+  # 🔗 URLs publiques (si besoin)
+  FRONTEND_URL: "http://localhost"
+  CORS_ORIGINS: "*"
